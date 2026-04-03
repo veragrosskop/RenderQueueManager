@@ -36,13 +36,16 @@ def _generate_test_data(base_dir: str, directory_count: int, chance: int) -> Dic
         directory = os.path.join(base_dir, f"complete_sequences{i}")
         frame_range = (1001, 1100)
         sequences[directory] = frame_range
-        _random_missing_frames(directory, chance, frame_range, random.choice([".png", ".exr", ".tiff"]))
+        extension = random.choice([".png", ".exr", ".tiff"])
+        _random_missing_frames(directory, chance, frame_range, extension)
 
         # create incomplete sequences
         directory = os.path.join(base_dir, f"incomplete_sequences{i}")
         frame_range = (1001, 1150)
         sequences[directory] = frame_range
-        _random_missing_frames(directory, chance, frame_range, random.choice([".png", ".exr", ".tiff"]))
+        extension = random.choice([".png", ".exr", ".tiff"])
+
+        _random_missing_frames(directory, chance, frame_range, extension)
 
     return sequences
 
