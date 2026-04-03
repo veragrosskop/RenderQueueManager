@@ -66,7 +66,7 @@ class File:
         Could be extended in the future to include, AOVs, users, versions etc.
         """
 
-        return int(self.components["frame"]) < int(other.components["frame"])
+        return int(self.components.get("frame", 0)) < int(other.components.get("frame", 0))
 
 
 class FileSequenceParser:
@@ -118,24 +118,13 @@ class FileSequenceParser:
             else:
                 raise SequenceError(f"No sequence found in directory: {self.directory}")
         else:
-            # case: sequence exists, so check for missing ranges
-            frames = [int(f.components["frame"]) for f in self.sequence]
-            prev_frame = None
-            for frame in frames:
-                if prev_frame is None:
-                    prev_frame = frame
-                    if (self.frame_range is not None) and (frame > self.frame_range[0]):
-                        missing_frames.extend(range(self.frame_range[0], frame))
-                else:
-                    if prev_frame == frame - 1:
-                        prev_frame = frame
-                    else:
-                        missing_frames.extend(range(prev_frame + 1, frame))
-                        prev_frame = frame
-            if self.frame_range and frames[-1] < self.frame_range[1]:
-                missing_frames.extend(
-                    range(frames[-1] + 1, self.frame_range[1] + 1)
-                )  # add final frames that are missing
+            # case: sequence exists, so check for missing frames
+            sequence_frames = list(sorted([int(f.components.get("frame", 0)) for f in self.sequence]))
+            if self.frame_range:
+                frames_expected = list(range(self.frame_range[0], self.frame_range[1] + 1))
+            else:
+                frames_expected = list(range(sequence_frames[0], sequence_frames[-1] + 1))
+            missing_frames = [frame for frame in frames_expected if frame not in sequence_frames]
             return missing_frames
 
     def get_sequence(self) -> List[File]:
@@ -149,5 +138,18 @@ class FileSequenceParser:
         summary: sequence status: complete / incomplete :  xxxx/xxxx frames are missing
         missing_frames : list of missing frames
         """
+        report = {}
+        try:
+            missing_frames = self.check_missing_frames()
+        except SequenceError:
+            _logger.error(f"Could not find missing_frames for sequence in directory: {self.directory}")
 
-        pass
+        if len(missing_frames) > 0:
+            report["status"] = "incomplete"
+            report["summary"] = f"Sequence incomplete : {len(missing_frames)} frames missing"
+        if len(missing_frames) == 0:
+            report["status"] = "complete"
+            report["summary"] = f"Sequence complete : {len(missing_frames)} frames missing"
+
+        report["missing_frames"] = missing_frames
+        return report
