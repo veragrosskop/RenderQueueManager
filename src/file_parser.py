@@ -1,8 +1,7 @@
 import os
 import re
 from typing import Optional, Tuple, List, Dict
-
-from black.trans import defaultdict
+from collections import defaultdict
 
 from src.constants import LOGS_DIR
 from src.errors import InvalidFileNameError, SequenceError
@@ -12,7 +11,10 @@ _logger = LoggerFactory.get_logger("FileSequenceParser", LOGS_DIR)
 
 
 class File:
-    """The File Class adds functionality for reading naming conventions of files as well as sorting functionality."""
+    """
+    Wrapper around a tokenized file representation for parsing e.g. frame numbers, extensions etc. Parses all data
+    on initialization.
+    """
 
     # supported file extensions
     VALID_EXTENSIONS = ["png", "jpg", "tiff", "exr"]
@@ -29,7 +31,12 @@ class File:
         "ext": r"(?P<ext>{})".format("|".join(VALID_EXTENSIONS)),  # ext regex group: one of the valid extensions
     }
 
-    def __init__(self, file_name, directory, naming_convention: Optional[str] = None):
+    def __init__(
+        self,
+        file_name: str,
+        directory: str,
+        naming_convention: Optional[str] = None,
+    ):
         self.file_name = file_name
         self.directory = directory
         self.components = {}
@@ -37,15 +44,6 @@ class File:
         self._parse_filename()
 
     # ---- Naming Convention Functionality
-
-    def _build_pattern(self):
-        """Build regex pattern from tokens according to a naming_convention."""
-        pattern = self.naming_convention  # store template
-        for token, regex in self.TOKENS.items():
-            pattern = pattern.replace(f"<{token}>", regex)  # replace each token with its given regex
-        pattern = f"{pattern}$"
-
-        return re.compile(pattern)
 
     def _parse_filename(self):
         """Parse the file name and extract components based on the naming_convention."""
@@ -59,13 +57,22 @@ class File:
                 f"Filename '{self.file_name}' does not match naming convention: {self.naming_convention}"
             )
 
+    def _build_pattern(self):
+        """Build regex pattern from tokens according to a naming_convention."""
+
+        pattern = self.naming_convention
+        for token, regex in self.TOKENS.items():
+            pattern = pattern.replace(f"<{token}>", regex)  # replace each token with its given regex
+        pattern = f"{pattern}$"
+
+        return re.compile(pattern)
+
     def __repr__(self):
-        """Represent this class as a string."""
         return self.file_name
 
-    def __lt__(self, other):
+    def __lt__(self, other: "File"):
         """
-        Define when a file is less than another file. Currently it sorts by frame number.
+        Define when a file is less than another file. Currently, it sorts by frame number.
         Could be extended in the future to include, AOVs, users, versions etc.
         """
 
@@ -73,7 +80,11 @@ class File:
 
 
 class FileSequenceParser:
-    """Class for parsing a sequence file directory and detecting missing frames."""
+    """
+    Class for parsing a sequence file directory and detecting missing frames.
+
+    Supports multiple sequences in a single directory, splitting these by the <name> token on the files' grammar.
+    """
 
     def __init__(self, directory: str, frame_range: Optional[Tuple[int, int]] = None):
         self.directory = directory
@@ -114,6 +125,7 @@ class FileSequenceParser:
         return {}, []
 
     def check_missing_frames_in_sequence(self, sequence: List[File]) -> List[int]:
+        """Checks if a single sequence is missing frames and returns those frame numbers."""
 
         sequence_frames = list(sorted([int(f.components.get("frame", 0)) for f in sequence]))
         if self.frame_range:
@@ -124,8 +136,9 @@ class FileSequenceParser:
         return missing_frames
 
     def check_missing_frames(self) -> Dict[str, List[int]]:
-        """Validates the frame sequence of the directory for file sequences of the valid formats.
-        Takes an optional frame_range to check if the first and last frame exists."""
+        """
+        Validates the frame sequence of the directory for file sequences of the valid formats.
+        """
 
         missing_frames: Dict[str, List[int]] = {}
 
@@ -147,8 +160,10 @@ class FileSequenceParser:
     def generate_report(self) -> Dict[str, Dict[str, List[File]]]:
         """
         Generates a report of the file sequences formated as:
-        summary: sequence status: complete / incomplete :  xxxx/xxxx frames are missing
-        missing_frames : list of missing frames
+        name:
+            status: 'complete' or 'incomplete'
+            summary: sequence status: complete / incomplete :  x frames missing
+            missing_frames : list of missing frame numbers
         """
         report = {}
         try:

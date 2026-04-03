@@ -1,9 +1,10 @@
-import logging
 import os
 import random
 import shutil
+import time
 from typing import Tuple, Dict
-from logger import LoggerFactory
+
+from src.logger import LoggerFactory
 from src.constants import LOGS_DIR, SAMPLE_DIR, JOBS_DIR
 from src.file_parser import FileSequenceParser
 from src.job_queue import Priority, Job, JobQueue
@@ -64,6 +65,7 @@ def _generate_test_data(base_dir: str, directory_count: int, chance: int) -> Dic
 
 
 if __name__ == "__main__":
+    # initialize directories
     os.makedirs(SAMPLE_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
     shutil.rmtree(JOBS_DIR, ignore_errors=True)
@@ -98,13 +100,36 @@ if __name__ == "__main__":
     logger.info(f"{len(complete)} Complete Sequences: {complete}")
     logger.info(f"{len(incomplete)} Incomplete Sequences: {incomplete}")
 
-    # process jobs
+    # Initialize queue and server.
     queue = JobQueue()
     server = Server(max_workers=5, queue=queue)
+
+    # Initialize job instances to push onto the queue.
     for directory, frame_range in sequences.items():
         sequencer = FileSequenceParser(directory, frame_range)
         for name, sequence in sequencer.sequences.items():
-            job = Job(sequence, priority=random.choice([Priority.HIGH, Priority.MEDIUM, Priority.LOW]))
+            job = Job(
+                queue.get_next_job_id(),
+                sequence,
+                priority=random.choice([Priority.HIGH, Priority.MEDIUM, Priority.LOW]),
+            )
             queue.add(job)
 
+    # Start the server
     server.start()
+
+    # Sleep for some time and submit more jobs
+    time.sleep(20)
+    logger.info(f"Submitting further jobs to server.")
+    for directory, frame_range in sequences.items():
+        sequencer = FileSequenceParser(directory, frame_range)
+        for name, sequence in sequencer.sequences.items():
+            job = Job(
+                queue.get_next_job_id(),
+                sequence,
+                priority=random.choice([Priority.HIGH, Priority.MEDIUM, Priority.LOW]),
+            )
+            queue.add(job)
+
+    # Join the server thread to ensure the python process is not killed preemptively.
+    server.server_thread.join()

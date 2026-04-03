@@ -4,23 +4,8 @@ import sys
 from datetime import datetime
 
 
-class JobLoggerAdapter(logging.LoggerAdapter):
-    """Adds custom format context to log messages."""
-
-    def process(self, msg, kwargs):
-        from src.job_queue import Job
-
-        job = self.extra.get("job")
-        if isinstance(job, Job):
-            msg = f"{job.job_id} | {job.status} | {job.priority} | {msg}"
-
-        # TO DO! Implement the same for Sequence
-
-        return msg, kwargs
-
-
 class LoggerFactory:
-    """Factory for logger instances across applications."""
+    """Factory for logger instance creation."""
 
     DEFAULT_FORMAT_CONSOLE = " %(asctime)s | %(name)-7s | %(levelname)s | %(message)s"
     DEFAULT_FORMAT_FILE = " %(asctime)s | %(levelname)s | %(message)s"
