@@ -55,8 +55,8 @@ class TestFileSequenceParser(unittest.TestCase):  # dummy directory
                 parser.check_missing_frames()
 
             parser.frame_range = (1001, 1005)
-            missing_all = parser.check_missing_frames()
-            self.assertEqual(missing_all, [1001, 1002, 1003, 1004, 1005])
+            with self.assertRaises(SequenceError):
+                missing_all = parser.check_missing_frames()
 
     def test_missing_some_frames(self):
         """Reject missing names"""
@@ -80,8 +80,8 @@ class TestFileSequenceParser(unittest.TestCase):  # dummy directory
             parser.frame_range = (1, 9)
             missing_end = parser.check_missing_frames()
 
-            self.assertEqual(missing, [3, 6])
-            self.assertEqual(missing_end, [3, 6, 8, 9])
+            self.assertEqual(missing, {"render": [3, 6]})
+            self.assertEqual(missing_end, {"render": [3, 6, 8, 9]})
 
     def test_missing_tail_frames(self):
         """Reject missing tail frames, or accept with no frame range given"""
@@ -105,8 +105,8 @@ class TestFileSequenceParser(unittest.TestCase):  # dummy directory
             parser.frame_range = (1001, 1009)
             missing_start_end = parser.check_missing_frames()
 
-            self.assertEqual(missing_start, [1001, 1003, 1006])
-            self.assertEqual(missing_start_end, [1001, 1003, 1006, 1008, 1009])
+            self.assertEqual(missing_start, {"render": [1001, 1003, 1006]})
+            self.assertEqual(missing_start_end, {"render": [1001, 1003, 1006, 1008, 1009]})
 
     def test_all_frames_exist(self):
         """Assert all frames exist"""
@@ -126,7 +126,7 @@ class TestFileSequenceParser(unittest.TestCase):  # dummy directory
             parser = FileSequenceParser(tmpdir)
             missing_none = parser.check_missing_frames()
 
-            self.assertEqual(missing_none, [])
+            self.assertEqual(missing_none, {"render": []})
 
     def test_invalid_file(self):
         """Test it skips over an invalid file"""
@@ -148,7 +148,7 @@ class TestFileSequenceParser(unittest.TestCase):  # dummy directory
             parser = FileSequenceParser(tmpdir)
             missing = parser.check_missing_frames()
 
-            self.assertEqual(missing, [])
+            self.assertEqual(missing, {"render": []})
 
 
 if __name__ == "__main__":

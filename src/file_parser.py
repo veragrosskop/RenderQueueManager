@@ -2,6 +2,8 @@ import os
 import re
 from typing import Optional, Tuple, List, Dict
 
+from black.trans import defaultdict
+
 from src.errors import InvalidFileNameError, SequenceError
 from src.logger import LoggerFactory
 
@@ -75,64 +77,73 @@ class FileSequenceParser:
     def __init__(self, directory: str, frame_range: Optional[Tuple[int, int]] = None):
         self.directory = directory
         self.frame_range = frame_range or None
-        self.sequence, self.invalid_files = self.read_directory()
 
-    def read_directory(self) -> Tuple[List[File], List[File]]:
+        result = self.read_directory()
+        self.sequences: Dict[str, List[File]] = result[0]
+        self.invalid_files: List[File] = result[1]
+
+    def read_directory(self) -> Tuple[Dict[str, File], List[File]]:
         """
         Read the directory and parse the sequence.
         It will list invalid files, such as for example a tmp or README.txt
         """
 
-        sequence = []
+        sequences: Dict[str, List[File]] = defaultdict(list)
         invalid_files = []
 
         try:
-            for root, dirs, files in os.walk(self.directory):
+            for _, _, files in os.walk(self.directory):
                 for file in files:
 
                     # check for naming_convention
                     try:
                         new_file = File(file, self.directory)
-                        sequence.append(new_file)
+                        sequences[new_file.components["name"]].append(new_file)
                     except InvalidFileNameError:
                         invalid_files.append(file)
                         _logger.warning(f"Invalid file name: {file} in directory: {self.directory}")
-                sequence = sorted(sequence)
-                return sequence, invalid_files
+
+                sequences = {name: sorted(sequence) for name, sequence in sequences.items()}
+
+                # Don't recurse into subfolders, only consider top level files.
+                return sequences, invalid_files
         except OSError as e:
             raise RuntimeError(f"Error while parsing directory: {self.directory}") from e
 
-        return [], []
+        return {}, []
 
-    def check_missing_frames(self) -> List[int]:
+    def check_missing_frames_in_sequence(self, sequence: List[File]) -> List[int]:
+
+        sequence_frames = list(sorted([int(f.components.get("frame", 0)) for f in sequence]))
+        if self.frame_range:
+            frames_expected = list(range(self.frame_range[0], self.frame_range[1] + 1))
+        else:
+            frames_expected = list(range(sequence_frames[0], sequence_frames[-1] + 1))
+        missing_frames = [frame for frame in frames_expected if frame not in sequence_frames]
+        return missing_frames
+
+    def check_missing_frames(self) -> Dict[str, List[int]]:
         """Validates the frame sequence of the directory for file sequences of the valid formats.
         Takes an optional frame_range to check if the first and last frame exists."""
 
-        missing_frames = []
+        missing_frames: Dict[str, List[int]] = {}
 
-        # check if sequence exists
-        if not self.sequence:
-            if self.frame_range:
-                missing_frames = list(range(self.frame_range[0], self.frame_range[1] + 1))
-                return missing_frames
+        if not self.sequences:
+            raise SequenceError(f"No sequence found in directory: {self.directory}")
+
+        for name, sequence in self.sequences.items():
+            # check if sequence exists
+            if not sequence:
+                if self.frame_range:
+                    missing_frames[name] = list(range(self.frame_range[0], self.frame_range[1] + 1))
+                else:
+                    raise SequenceError(f"No sequence found in directory: {self.directory}")
             else:
-                raise SequenceError(f"No sequence found in directory: {self.directory}")
-        else:
-            # case: sequence exists, so check for missing frames
-            sequence_frames = list(sorted([int(f.components.get("frame", 0)) for f in self.sequence]))
-            if self.frame_range:
-                frames_expected = list(range(self.frame_range[0], self.frame_range[1] + 1))
-            else:
-                frames_expected = list(range(sequence_frames[0], sequence_frames[-1] + 1))
-            missing_frames = [frame for frame in frames_expected if frame not in sequence_frames]
-            return missing_frames
+                missing_frames[name] = self.check_missing_frames_in_sequence(sequence)
 
-    def get_sequence(self) -> List[File]:
-        """Return the sequence of the files in the directory."""
+        return missing_frames
 
-        return self.sequence
-
-    def generate_report(self) -> Dict[str, List[File]]:
+    def generate_report(self) -> Dict[str, Dict[str, List[File]]]:
         """
         Generates a report of the file sequences formated as:
         summary: sequence status: complete / incomplete :  xxxx/xxxx frames are missing
@@ -144,12 +155,19 @@ class FileSequenceParser:
         except SequenceError:
             _logger.error(f"Could not find missing_frames for sequence in directory: {self.directory}")
 
-        if len(missing_frames) > 0:
-            report["status"] = "incomplete"
-            report["summary"] = f"Sequence incomplete : {len(missing_frames)} frames missing"
-        if len(missing_frames) == 0:
-            report["status"] = "complete"
-            report["summary"] = f"Sequence complete : {len(missing_frames)} frames missing"
+        for name, sequence in self.sequences.items():
 
-        report["missing_frames"] = missing_frames
+            subreport = {}
+
+            if len(missing_frames[name]) > 0:
+                subreport["status"] = "incomplete"
+                subreport["summary"] = f"Sequence incomplete : {len(missing_frames[name])} frames missing"
+            if len(missing_frames[name]) == 0:
+                subreport["status"] = "complete"
+                subreport["summary"] = f"Sequence complete : {len(missing_frames[name])} frames missing"
+
+            subreport["missing_frames"] = missing_frames[name]
+
+            report[name] = subreport
+
         return report
