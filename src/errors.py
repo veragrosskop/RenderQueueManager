@@ -13,4 +13,6 @@ class InvalidFileNameError(Exception):
 class ProcessingError(Exception):
     """Base class for Processing Errors. (Currently simulating rendertime errors.)"""
 
-    pass
+    def __init__(self, message, job):
+        super().__init__(message)
+        self.job = job

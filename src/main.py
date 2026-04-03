@@ -5,6 +5,8 @@ import shutil
 from typing import Tuple, Dict
 from logger import LoggerFactory
 from src.file_parser import FileSequenceParser
+from src.job_queue import Priority, Job, JobQueue
+from src.server import Server
 
 
 def _random_missing_frames(directory: str, name: str, chance: int, frame_range: Tuple[int, int], file_extension: str):
@@ -91,3 +93,14 @@ if __name__ == "__main__":
     logger.info(f"Finished Parsing File Sequences.")
     logger.info(f"{len(complete)} Complete Sequences: {complete}")
     logger.info(f"{len(incomplete)} Incomplete Sequences: {incomplete}")
+
+    # process jobs
+    queue = JobQueue()
+    server = Server(min_workers=3, max_workers=4, queue=queue)
+    for directory, frame_range in sequences.items():
+        sequencer = FileSequenceParser(directory, frame_range)
+        for name, sequence in sequencer.sequences.items():
+            job = Job(sequence, priority=random.choice([Priority.HIGH, Priority.MEDIUM, Priority.LOW]))
+            queue.add(job)
+
+    server.start()

@@ -1,8 +1,13 @@
+import os
 import threading
 from enum import Enum
 from typing import Optional, List, Dict
 from src.file_parser import File
 from datetime import datetime
+
+from src.logger import LoggerFactory
+
+_logger = LoggerFactory.get_logger("Queue", os.path.join(os.getcwd(), "log"))
 
 
 class Priority(Enum):
@@ -46,7 +51,7 @@ class Job:
         return str(self)
 
     def __str__(self):
-        return f"job:, {self.job_id}, {str(self.priority)}, {self.status}"
+        return f"job: {self.job_id}, {str(self.priority)}, {self.status}"
 
 
 class JobQueue:
@@ -68,10 +73,12 @@ class JobQueue:
             job.status = Status.QUEUED
             self._job_registry[job.job_id] = job
             self._queue.append(job.job_id)
+            _logger.debug(f"Added job: {job.job_id} to queue.")
         self.sort()
 
     def remove_from_queue(self, job: Job):
         with self.lock:
+            _logger.debug(f"Removed job: {job.job_id} from queue.")
             self._queue.remove(job)
 
     def sort(self):
