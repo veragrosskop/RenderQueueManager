@@ -1,13 +1,16 @@
+import json
 import os
 import threading
 from enum import Enum
 from typing import Optional, List, Dict
+
+from src.constants import LOGS_DIR, JOBS_DIR
 from src.file_parser import File
 from datetime import datetime
 
 from src.logger import LoggerFactory
 
-_logger = LoggerFactory.get_logger("Queue", os.path.join(os.getcwd(), "log"))
+_logger = LoggerFactory.get_logger("Queue", LOGS_DIR)
 
 
 class Priority(Enum):
@@ -46,6 +49,22 @@ class Job:
         self.status = status
         Job._jobs_total = Job._jobs_total + 1
         self.job_id = Job._jobs_total
+
+    def save_status_report(self, error_message: Optional[str] = None):
+        """ "Store a json with a job report."""
+
+        with open(os.path.join(JOBS_DIR, f"job_status_{self.job_id}.json"), "w") as status_report:
+            json.dump(
+                {
+                    "job_id": str(self.job_id),
+                    "submit_time": str(self.submit_time),
+                    "status": str(self.status),
+                    "priority": str(self.priority),
+                    "error_message": error_message if error_message else "",
+                },
+                fp=status_report,
+                indent=4,
+            )
 
     def __repr__(self):
         return str(self)

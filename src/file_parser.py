@@ -4,10 +4,11 @@ from typing import Optional, Tuple, List, Dict
 
 from black.trans import defaultdict
 
+from src.constants import LOGS_DIR
 from src.errors import InvalidFileNameError, SequenceError
 from src.logger import LoggerFactory
 
-_logger = LoggerFactory.get_logger("FileSequenceParser", os.path.join(os.getcwd(), "log"))
+_logger = LoggerFactory.get_logger("FileSequenceParser", LOGS_DIR)
 
 
 class File:

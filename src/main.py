@@ -4,6 +4,7 @@ import random
 import shutil
 from typing import Tuple, Dict
 from logger import LoggerFactory
+from src.constants import LOGS_DIR, SAMPLE_DIR, JOBS_DIR
 from src.file_parser import FileSequenceParser
 from src.job_queue import Priority, Job, JobQueue
 from src.server import Server
@@ -63,19 +64,22 @@ def _generate_test_data(base_dir: str, directory_count: int, chance: int) -> Dic
 
 
 if __name__ == "__main__":
-    base_dir = os.getcwd()
-    base_dir = os.path.join(base_dir, "sample_data")
-    logger = LoggerFactory.get_logger("main", os.path.join(os.getcwd(), "log"))
+    os.makedirs(SAMPLE_DIR, exist_ok=True)
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    shutil.rmtree(JOBS_DIR, ignore_errors=True)
+    os.makedirs(JOBS_DIR, exist_ok=True)
+
+    logger = LoggerFactory.get_logger("main", LOGS_DIR)
 
     # generate sample data
-    logger.info(f"Generating Sample data in base_dir: {base_dir}")
+    logger.info(f"Generating Sample data in base_dir: {SAMPLE_DIR}")
     sequences = _generate_test_data(
-        base_dir,
+        SAMPLE_DIR,
         10,
         20,
     )
     for key, value in sequences.items():
-        logger.info(f"\t----- {str.replace(key, (base_dir + "\\"), "")}, frame-range: {value}")
+        logger.info(f"\t----- {str.replace(key, (SAMPLE_DIR + "\\"), "")}, frame-range: {value}")
     logger.info(f"Finished Generating Sample data.\n")
 
     # Parse Sequences
@@ -96,7 +100,7 @@ if __name__ == "__main__":
 
     # process jobs
     queue = JobQueue()
-    server = Server(min_workers=3, max_workers=4, queue=queue)
+    server = Server(max_workers=5, queue=queue)
     for directory, frame_range in sequences.items():
         sequencer = FileSequenceParser(directory, frame_range)
         for name, sequence in sequencer.sequences.items():

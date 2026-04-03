@@ -1,4 +1,5 @@
 .idea/
 .venv/
 src/sample_data/*
-src/log/*
+src/logs/*
+src/jobs/*

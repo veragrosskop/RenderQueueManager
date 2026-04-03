@@ -6,16 +6,17 @@ from job_queue import JobQueue, Job, Priority, Status
 import time
 from random import randint, random
 from errors import ProcessingError
+from src.constants import LOGS_DIR
 
 from src.logger import LoggerFactory
 
-_logger = LoggerFactory.get_logger("Server", os.path.join(os.getcwd(), "log"))
+_logger_server = LoggerFactory.get_logger("Server", LOGS_DIR)
+_logger_worker = LoggerFactory.get_logger("Worker", LOGS_DIR)
 
 
 class Server:
 
-    def __init__(self, min_workers: int, max_workers: int, queue: JobQueue):
-        self.min_workers = min_workers
+    def __init__(self, max_workers: int, queue: JobQueue):
         self.max_workers = max_workers
         self.job_queue = queue
         self._running = False
@@ -24,11 +25,12 @@ class Server:
     def process_job(self, job: Job) -> Job:
         """Process a single job and updates the queue."""
         job.status = Status.PROCESSING
+        _logger_worker.info(f"{job}")
         self.job_queue.sort()
         time.sleep(randint(1, 3))
         # for illustrative purposes about 1 in 5 jobs will error
         if random() < 0.20:
-            raise ProcessingError("", job)
+            raise ProcessingError("Failed due to random chance...", job)
         return job
 
     def start(self):
@@ -45,11 +47,11 @@ class Server:
                 # get next in cue
                 job = self.job_queue.get_next_job()
                 if job is None:
-                    _logger.info(f"Scanning for further jobs...")
+                    _logger_server.info(f"Scanning for further jobs...")
                     time.sleep(3)
                 else:
                     # process job
-                    _logger.info(f"Submitting {job} from the queue...")
+                    _logger_server.info(f"Submitting {job} from the queue...")
                     future = executor.submit(self.process_job, job)
                     futures.add(future)
 
@@ -60,10 +62,12 @@ class Server:
                     try:
                         job = future.result()
                         job.status = Status.FINISHED
-                        _logger.info(f"{job}")
+                        job.save_status_report()
+                        _logger_worker.info(f"{job}")
                     except ProcessingError as e:
                         e.job.status = Status.ERROR
-                        _logger.info(f"{e.job} failed with exception {e}")
+                        e.job.save_status_report(error_message=str(e))
+                        _logger_worker.info(f"{e.job}: {e}")
 
         def stop():
             """Stop the server."""
