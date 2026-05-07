@@ -73,19 +73,7 @@ This separation allows each system to be extended independently (e.g. swapping q
 git clone https://github.com/veragrosskop/RenderQueueManager.git
 cd RenderQueueManager
 ```
-#### 2. Create a virtual environment (recommended)
-```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
-```
-#### 3. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-#### 4. Run the application
+#### 2. Run the application
 ```bash
 python main.py
 ```
